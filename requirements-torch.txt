@@ -1,0 +1,5 @@
+# Optional, for .bin (PyTorch) quantization only. Install separately so
+# the main image and test suite do not depend on a ~200 MB torch wheel.
+# CPU wheel index (PyTorch's own index, not PyPI):
+--index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu

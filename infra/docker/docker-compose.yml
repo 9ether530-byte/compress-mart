@@ -1,0 +1,46 @@
+# Phase 8: API + Meilisearch (live in Phase 7) + Postgres replica
+# (live in Phase 8, pgvector:pg16). MinIO remains a placeholder:
+# the S3 client is built and tested, but the MinIO image pull is
+# denied by the registry in this sandbox, so MinIO is NOT live here.
+# SQLite stays the authoritative primary; Postgres is a replica.
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    ports:
+      - "8020:8000"
+    volumes:
+      - compress-mart-data:/data
+    environment:
+      - COMPRESS_MART_DATA=/data
+      - COMPRESS_MART_SEARCH_URL=http://meilisearch:7700
+      - COMPRESS_MART_PG_DSN=host=postgres port=5432 user=compress_mart password=compress_mart_dev dbname=compress_mart
+    depends_on:
+      - meilisearch
+      - postgres
+  meilisearch:
+    image: docker.io/getmeili/meilisearch:v1.17
+    ports:
+      - "7700:7700"
+    volumes:
+      - compress-mart-search-data:/meili_data
+    environment:
+      - MEILI_NO_ANALYTICS=true
+  postgres:
+    image: docker.io/pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    volumes:
+      - compress-mart-pg-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=compress_mart
+      - POSTGRES_PASSWORD=compress_mart_dev
+      - POSTGRES_DB=compress_mart
+  # minio:
+  #   image: docker.io/minio/minio
+  #   # Registry access denied in this sandbox (Phase 8); see README.
+volumes:
+  compress-mart-data:
+  compress-mart-search-data:
+  compress-mart-pg-data:

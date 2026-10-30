@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compress-mart-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: compress-mart-api}
+  template:
+    metadata:
+      labels: {app: compress-mart-api}
+    spec:
+      containers:
+        - name: api
+          image: compress-mart:phase7
+          ports: [{containerPort: 8000}]
+          env:
+            - {name: COMPRESS_MART_DATA, value: /data}
+            - {name: COMPRESS_MART_SEARCH_URL, value: "http://compress-mart-search:7700"}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: compress-mart-api
+spec:
+  selector: {app: compress-mart-api}
+  ports:
+    - {port: 8000, targetPort: 8000}
+  type: ClusterIP
+---
+# Meilisearch sidecar service: proven live in Podman in Phase 7
+# (getmeili/meilisearch:v1.17.1, host port 7700, MEILI_NO_ANALYTICS).
+# This manifest is NOT cluster-proven: no kubectl/kind is available
+# in this sandbox, so it is YAML-validated only, not applied.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compress-mart-search
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: compress-mart-search}
+  template:
+    metadata:
+      labels: {app: compress-mart-search}
+    spec:
+      containers:
+        - name: search
+          image: docker.io/getmeili/meilisearch:v1.17
+          ports: [{containerPort: 7700}]
+          env:
+            - {name: MEILI_NO_ANALYTICS, value: "true"}
+          volumeMounts:
+            - {name: search-data, mountPath: /meili_data}
+      volumes:
+        - name: search-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: compress-mart-search
+spec:
+  selector: {app: compress-mart-search}
+  ports:
+    - {port: 7700, targetPort: 7700}
+  type: ClusterIP

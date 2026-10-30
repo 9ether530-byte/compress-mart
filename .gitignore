@@ -1,0 +1,8 @@
+data/
+container-data/
+container-data-torch/
+pg-data/
+meili-data/
+minio-data/
+__pycache__/
+*.pyc

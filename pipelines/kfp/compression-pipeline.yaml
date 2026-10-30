@@ -1,0 +1,44 @@
+# Kubeflow Pipelines definition — Phase 1: declarative, not executed by KFP.
+# The local API runs the same stage order in-process (see app.py). When KFP
+# is available, each stage maps to the container image named here.
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: compression-pipeline
+  annotations:
+    compress-mart/phase: "1-local-core-not-kfp-executed"
+spec:
+  entrypoint: compress
+  arguments:
+    parameters:
+      - {name: model_id}
+      - {name: target, value: raspberry-pi-5}
+      - {name: policy, value: auto}
+  templates:
+    - name: compress
+      dag:
+        tasks:
+          - {name: ingest, template: ingest}
+          - {name: profile, template: profile, dependencies: [ingest]}
+          - {name: distill, template: distill, dependencies: [profile], when: "{{workflow.parameters.policy}} == auto"}
+          - {name: prune, template: prune, dependencies: [distill]}
+          - {name: quantize, template: quantize, dependencies: [prune]}
+          - {name: export, template: export, dependencies: [quantize]}
+          - {name: benchmark, template: benchmark, dependencies: [export]}
+          - {name: certify, template: certify, dependencies: [benchmark]}
+    - name: ingest
+      container: {image: "compress-mart/ingest:phase1"}
+    - name: profile
+      container: {image: "compress-mart/profiler:phase1"}
+    - name: distill
+      container: {image: "compress-mart/router:phase1"}
+    - name: prune
+      container: {image: "compress-mart/router:phase1"}
+    - name: quantize
+      container: {image: "compress-mart/router:phase1"}
+    - name: export
+      container: {image: "compress-mart/router:phase1"}
+    - name: benchmark
+      container: {image: "compress-mart/benchmark:phase1"}
+    - name: certify
+      container: {image: "compress-mart/catalog:phase1"}
