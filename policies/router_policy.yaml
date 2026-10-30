@@ -1,0 +1,53 @@
+# Tool-router policy — Phase 1.
+# The named upstream tools are NOT installed in Phase 1 (most are not
+# installable under those names). Each rule names the intended upstream tool
+# AND the local adapter that actually runs. Adapters are deterministic and
+# labelled SIMULATED in every compression manifest. Swapping an adapter for
+# a real tool is a one-rule change here, not a code change elsewhere.
+rules:
+  - name: weights_npz_int8
+    when: {model_type: weights, category: any}
+    tool: NumPyInt8
+    adapter: numpy_int8
+    bit_width: 8
+    format: npz
+    sparsity: 0.0
+  - name: llm_laptop
+    when: {model_type: llm, category: laptop}
+    tool: AngelSlim
+    adapter: angelslim_ptq
+    bit_width: 8
+    format: gguf
+    sparsity: 0.0
+  - name: vision_phone
+    when: {model_type: vision, category: phone}
+    tool: AIMET
+    adapter: aimet_ptq
+    bit_width: 8
+    format: tflite
+    sparsity: 0.0
+  - name: iot_raspberry_pi
+    when: {model_type: any, category: iot}
+    tool: TinyPort
+    adapter: tinyport_integer_descent
+    bit_width: 8
+    format: onnx
+    sparsity: 0.1
+  - name: llm_gpu_server
+    when: {model_type: llm, category: gpu-server}
+    tool: TurboQuant
+    adapter: turboquant_gptq_awq
+    bit_width: 4
+    format: onnx
+    sparsity: 0.0
+  - name: general_pytorch
+    when: {model_type: any, category: any}
+    tool: ShrinkAI
+    adapter: shrinkai_distill_prune_quant
+    bit_width: 8
+    format: pt
+    sparsity: 0.2
+# Task overrides: ASR models on IoT keep the TinyPort rule above (iot wins);
+# a vision model on a laptop falls through to general_pytorch.
+# Bit-width request from the caller overrides the rule's bit_width only if
+# it is in the target's recommended_bit_widths.
