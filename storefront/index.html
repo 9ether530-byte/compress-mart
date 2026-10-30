@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compress-Mart</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem}
+.card{border:1px solid #ccc;border-radius:8px;padding:1rem;margin:1rem 0}
+label{margin-right:1rem}
+.warn{background:#fff3cd;padding:0.75rem;border-radius:6px}
+code{background:#f0f0f0;padding:0.1rem 0.3rem}
+</style>
+</head>
+<body>
+<h1>Compress-Mart</h1>
+<p class="warn">Phase 1 local core: compression is SIMULATED and benchmarks are EMULATED.
+No artifact here is a real quantized model measured on physical hardware.</p>
+<label>Target <select id="target"><option value="">any</option>
+<option>rpi5</option><option>raspberry-pi-5</option><option>phone</option>
+<option>laptop</option><option>jetson-orin-nano</option><option>esp32-s3</option></select></label>
+<label>Task <select id="task"><option value="">any</option>
+<option>llm</option><option>asr</option><option>vision</option></select></label>
+<label>Search <input id="q" type="text" placeholder="model, tool, target…"></label>
+<button onclick="load()">Search</button>
+<div id="facets"></div>
+<div id="results"></div>
+<h2>Deploy snippet</h2>
+<p>Pick an artifact, then use its format:</p>
+<pre><code># ONNX Runtime
+python -m onnxruntime &lt;model.onnx&gt;
+# ollama (gguf artifacts)
+ollama run &lt;artifact-id&gt;
+# vLLM / TensorRT: see the artifact's benchmark card for its format and target.</code></pre>
+<script src="/app.js"></script>
+</body>
+</html>
