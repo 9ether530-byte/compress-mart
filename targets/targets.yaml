@@ -1,0 +1,110 @@
+# Compress-Mart target matrix — Phase 1: static, emulated profiles.
+# A real profiler would query /sys, /proc and vendor SDKs on the device.
+# Here every HCP is marked emulated=true so no benchmark is ever mistaken
+# for a measurement on physical hardware.
+targets:
+  - id: apple-m2
+    category: laptop
+    cpu: Apple M2
+    isa_flags: [arm64, neon]
+    npu_available: true
+    memory_mb: 16384
+    memory_bandwidth_gbs: 100
+    recommended_bit_widths: [8, 16]
+    latency_ceiling_ms_p95: 120
+    min_quality_delta: -0.05
+  - id: intel-i7-13th
+    category: laptop
+    cpu: Intel Core i7 13th gen
+    isa_flags: [x86_64, avx2, avx512]
+    npu_available: false
+    memory_mb: 32768
+    memory_bandwidth_gbs: 76
+    recommended_bit_widths: [8, 16]
+    latency_ceiling_ms_p95: 150
+    min_quality_delta: -0.05
+  - id: amd-ryzen-7
+    category: laptop
+    cpu: AMD Ryzen 7
+    isa_flags: [x86_64, avx2]
+    npu_available: false
+    memory_mb: 32768
+    memory_bandwidth_gbs: 70
+    recommended_bit_widths: [8, 16]
+    latency_ceiling_ms_p95: 150
+    min_quality_delta: -0.05
+  - id: snapdragon-8-gen3
+    category: phone
+    cpu: Qualcomm Snapdragon 8 Gen 3
+    isa_flags: [arm64, neon]
+    npu_available: true
+    memory_mb: 12288
+    memory_bandwidth_gbs: 77
+    recommended_bit_widths: [8]
+    latency_ceiling_ms_p95: 90
+    min_quality_delta: -0.04
+  - id: apple-a17
+    category: phone
+    cpu: Apple A17 Pro
+    isa_flags: [arm64, neon]
+    npu_available: true
+    memory_mb: 8192
+    memory_bandwidth_gbs: 70
+    recommended_bit_widths: [8]
+    latency_ceiling_ms_p95: 90
+    min_quality_delta: -0.04
+  - id: exynos-2400
+    category: phone
+    cpu: Samsung Exynos 2400
+    isa_flags: [arm64, neon]
+    npu_available: true
+    memory_mb: 12288
+    memory_bandwidth_gbs: 60
+    recommended_bit_widths: [8]
+    latency_ceiling_ms_p95: 100
+    min_quality_delta: -0.04
+  - id: raspberry-pi-5
+    category: iot
+    cpu: Broadcom BCM2712 Cortex-A76
+    isa_flags: [arm64, neon]
+    npu_available: false
+    memory_mb: 8192
+    memory_bandwidth_gbs: 17
+    recommended_bit_widths: [8, 4]
+    latency_ceiling_ms_p95: 400
+    min_quality_delta: -0.05
+  - id: raspberry-pi-zero-2w
+    category: iot
+    cpu: Broadcom BCM2710A1 Cortex-A53
+    isa_flags: [arm64, neon]
+    npu_available: false
+    memory_mb: 512
+    memory_bandwidth_gbs: 4
+    recommended_bit_widths: [8, 4]
+    latency_ceiling_ms_p95: 900
+    min_quality_delta: -0.06
+  - id: jetson-orin-nano
+    category: iot
+    cpu: NVIDIA Jetson Orin Nano
+    isa_flags: [arm64, neon]
+    npu_available: true
+    memory_mb: 8192
+    memory_bandwidth_gbs: 68
+    recommended_bit_widths: [8, 16]
+    latency_ceiling_ms_p95: 200
+    min_quality_delta: -0.05
+  - id: esp32-s3
+    category: iot
+    cpu: Espressif ESP32-S3 Xtensa LX7
+    isa_flags: [xtensa]
+    npu_available: false
+    memory_mb: 512
+    memory_bandwidth_gbs: 1
+    recommended_bit_widths: [8]
+    latency_ceiling_ms_p95: 1500
+    min_quality_delta: -0.08
+# Short aliases used by the prompt's success sequence.
+aliases:
+  rpi5: raspberry-pi-5
+  phone: snapdragon-8-gen3
+  laptop: intel-i7-13th
