@@ -1,7 +1,7 @@
 # Compress-Mart — PC / laptop setup
 
-This repo is the complete Compress-Mart local core through Phase 8,
-ready to clone onto a real PC or laptop. The sandbox work is done;
+This repo is the complete Compress-Mart local core through Phase 9
+(audit fixes, 2026-11-10), ready to clone onto a real PC or laptop. The sandbox work is done;
 the PC is where the remaining "not proven" items get proven, because
 it has real hardware, a normal network, and a GPU once the graphics
 card is replaced.
@@ -15,7 +15,7 @@ python3 -m venv .venv && . .venv/bin/activate  # or: python -m venv .venv
 pip install -r requirements.txt
 ./scripts/run.sh
 # API on http://127.0.0.1:8020, docs at /docs
-python -m pytest -q
+python3 -m pytest -q
 ```
 
 Optional, for real `.bin` quantization:
@@ -47,23 +47,26 @@ curl http://127.0.0.1:8020/external/status
 - Persistent router policy, benchmark → router feedback loop,
   reverify quarantine, Meilisearch search (with local fallback),
   measured host dequant time, Postgres replica sync.
-- Tests: 28 passed + 1 live test skipped by default (Phase 8).
-  Run the live whisper test on the PC with:
-  `COMPRESS_MART_LIVE=1 python -m pytest -q tests/test_phase3.py::test_live_whisper_tiny_safetensors`
+- Tests: 28 passed + 1 live test skipped by default in Phase 8;
+  Phase 9 adds regression tests for the audit fixes (see
+  `tests/test_phase9.py`). Run the live whisper test on the PC with:
+  `COMPRESS_MART_LIVE=1 python3 -m pytest -q tests/test_phase3.py::test_live_whisper_tiny_safetensors`
 
 ## What the PC still needs to prove (in order)
 
 1. **Real hardware latency** — run the API on the PC, then on a Pi
    or phone if available, and replace the emulated p95 numbers with
-   measured ones. The benchmark schema already carries
-   `measured_host_dequant_ms`; target latency is the next field.
+   measured ones. The benchmark schema carries
+   `measured_host_dequant_ms` as an optional field (Phase 9 added it
+   to `schemas/benchmark_card.json`); target latency is the next field.
 2. **MinIO live** — the S3 client is built (stdlib SigV4) but the
    MinIO image pull was registry-denied in the sandbox. On the PC,
    `docker pull docker.io/minio/minio:latest` should work; then
    `POST /storage/sync` against it and check `/external/status`.
 3. **Kubernetes cluster run** — manifests are YAML-validated only.
    On the PC, `kind` or a local cluster can actually apply
-   `infra/k8s/deployment.yaml` (API + Meilisearch services).
+   `infra/k8s/deployment.yaml` (API + Meilisearch + Postgres services;
+   build the API image first with `scripts/build-container-phase8.sh`).
 4. **Kubeflow execution** — `pipelines/kfp/compression-pipeline.yaml`
    is declarative; running it needs a Kubeflow cluster.
 5. **Billing** — not built. No Stripe or other keys are in this repo
@@ -75,8 +78,9 @@ curl http://127.0.0.1:8020/external/status
 
 - The signing key is generated on first run in `$COMPRESS_MART_DATA/keys`
   and is never printed or served. Do not commit `data/`.
-- `docker-compose.yml` and `postgres.py` use local dev-only passwords
-  (`compress_mart_dev`). Change them before exposing any service
-  beyond localhost.
+- `docker-compose.yml`, `postgres.py` and `storage.py` use local
+  dev-only passwords (`compress_mart_dev` for Postgres,
+  `compress_mart_dev_pw` for the S3 secret key). Change them before
+  exposing any service beyond localhost.
 - `COMPRESS_MART_API_TOKEN`, when set, gates all writes and pull
   with header `X-API-Token`. Set it for any shared deployment.

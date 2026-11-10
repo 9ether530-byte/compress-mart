@@ -21,6 +21,7 @@ import os
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 def endpoint() -> str:
@@ -92,21 +93,23 @@ def put_object(key: str, data: bytes) -> dict:
     return {"key": key, "status": status, "ok": status in (200, 201, 204)}
 
 
-def get_object(key: str) -> bytes | None:
-    status, body = _request("GET", key)
-    return body if status == 200 else None
-
-
 def sync_artifacts(store) -> dict:
     """Upload every CERTIFIED/PUBLISHED artifact tar to the bucket.
     Returns per-artifact status; a down endpoint gives 502 at the API
-    layer, not a partial silent success."""
+    layer, not a partial silent success. A tar file that is missing
+    from disk raises FileNotFoundError (a server data problem, not
+    a storage outage) so the API can report it as 500, not 502."""
     make_bucket()
     out = []
     for a in store.list_artifacts():
         if a["state"] not in ("CERTIFIED", "PUBLISHED"):
             continue
-        data = open(a["file_path"], "rb").read()
+        tar_path = Path(a["file_path"])
+        if not tar_path.exists():
+            raise FileNotFoundError(
+                f"artifact tar missing on disk for {a['id']}: {tar_path}")
+        with open(tar_path, "rb") as f:
+            data = f.read()
         r = put_object(f"{a['id']}.tar.gz", data)
         out.append({"artifact_id": a["id"], **r})
     return {"bucket": bucket(), "endpoint": endpoint(), "objects": out,
@@ -114,9 +117,20 @@ def sync_artifacts(store) -> dict:
 
 
 def status() -> dict:
+    """Available = the endpoint answers at all. MinIO's health
+    endpoint is tried first; a generic S3 endpoint answers the
+    bucket GET instead (200/404/403 all prove it is up — only a
+    transport failure means down)."""
     try:
         req = urllib.request.Request(f"{endpoint()}/minio/health/ready", method="GET")
         with urllib.request.urlopen(req, timeout=5) as resp:
             return {"available": resp.status == 200, "endpoint": endpoint(), "bucket": bucket()}
+    except urllib.error.HTTPError:
+        return {"available": True, "endpoint": endpoint(), "bucket": bucket()}
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        code, _ = _request("GET", "")
+        return {"available": code is not None, "endpoint": endpoint(), "bucket": bucket()}
     except Exception:  # noqa: BLE001
         return {"available": False, "endpoint": endpoint(), "bucket": bucket()}

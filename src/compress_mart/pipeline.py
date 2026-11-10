@@ -1,9 +1,13 @@
-"""Compression adapters (SIMULATED in Phase 1) + deterministic benchmark.
+"""Compression adapters + deterministic benchmark.
 
-Honesty contract: every manifest says compression_mode=SIMULATED and
-every benchmark card says emulated=true. The payload is a deterministic
-prefix of the original bytes at the size ratio implied by the bit width —
-it is NOT a real quantized model and must never be presented as one.
+Honesty contract: a SIMULATED manifest says compression_mode=SIMULATED
+and its benchmark card says emulated=true — the payload is a
+deterministic prefix of the original bytes, NOT a real quantized model.
+A REAL manifest says compression_mode=REAL, its benchmark card says
+the quality numbers are measured dequant error (target latency is
+still emulated — only host dequant time is measured), and its README
+says so too. The two must never be mixed: a REAL artifact must not
+ship a SIMULATED README or an "Emulated: yes" card.
 A real adapter replaces `compress_payload` for one tool, not the pipeline.
 """
 from __future__ import annotations
@@ -74,6 +78,10 @@ def build_benchmark(*, artifact_id: str, target: str, category: str, task: str,
     metric, baseline = QUALITY_METRIC.get(task, ("quality_score", 0.80))
     quality_value = round(baseline * (1 + delta), 4) if metric != "wer" and metric != "perplexity" else round(baseline * (1 - delta), 4)
     passed = delta >= hcp["min_quality_delta"] and (p50 * 1.4) <= hcp["latency_ceiling_ms_p95"]
+    # emulated is a property of the artifact, not a constant: REAL
+    # artifacts have measured quality (dequant error); only their
+    # target latency is still emulated.
+    emulated = manifest.get("compression_mode") != "REAL"
     return {
         "artifact_id": artifact_id,
         "target": target,
@@ -86,11 +94,12 @@ def build_benchmark(*, artifact_id: str, target: str, category: str, task: str,
         "compressed_size_bytes": manifest["compressed_size_bytes"],
         "size_ratio": round(size_ratio, 4),
         "passed": passed,
-        "emulated": True,
+        "emulated": emulated,
+        "compression_mode": manifest.get("compression_mode", "SIMULATED"),
         "reproduction_commands": [
             f"cm pull {artifact_id}",
             f"cm verify {artifact_id}.tar.gz",
-            "# Benchmarks are emulated in Phase 1 (see benchmark card).",
+            "# Target latency is emulated in Phase 9 (see benchmark card).",
             "# A physical-device run replaces the emulated values, not the schema.",
         ],
     }
@@ -98,11 +107,19 @@ def build_benchmark(*, artifact_id: str, target: str, category: str, task: str,
 
 def benchmark_card_markdown(benchmark: dict, hcp: dict) -> str:
     lat = benchmark["latency_ms"]
+    if benchmark.get("emulated"):
+        emulated_line = (
+            "**Emulated:** yes — these numbers are deterministic estimates from the\n"
+            "target profile, NOT measurements on physical hardware.\n\n")
+    else:
+        emulated_line = (
+            "**Emulated:** no for quality — quality is measured dequant error from\n"
+            "the real quantized payload. Target latency is still emulated from the\n"
+            "target profile, NOT measured on physical hardware.\n\n")
     return (
         f"# Benchmark card — {benchmark['artifact_id']}\n\n"
         f"**Target:** {benchmark['target']} (emulated profile: {hcp['cpu']})\n\n"
-        f"**Emulated:** yes — these numbers are deterministic estimates from the\n"
-        f"target profile, NOT measurements on physical hardware.\n\n"
+        f"{emulated_line}"
         f"- Quality: {benchmark['quality_metric']} = {benchmark['quality_value']} "
         f"(delta {benchmark['quality_delta']}, floor {hcp['min_quality_delta']})\n"
         f"- Latency: p50 {lat['p50']} ms, p95 {lat['p95']} ms, p99 {lat['p99']} ms "
@@ -133,6 +150,21 @@ def license_receipt(*, artifact_id: str, model_id: str, license_name, license_st
 def write_artifact_tar(*, tar_path: Path, payload: bytes, manifest: dict,
                        benchmark: dict, benchmark_md: str, provenance: dict,
                        receipt: dict) -> None:
+    mode = manifest.get("compression_mode", "SIMULATED")
+    if mode == "REAL":
+        readme = (
+            "Compress-Mart artifact.\n"
+            f"Compression is REAL ({manifest.get('tool')}, "
+            f"{manifest.get('bit_width')}-bit, {manifest.get('format')}).\n"
+            "Quality numbers are measured dequant error from this payload;\n"
+            "target latency is still emulated, not measured on hardware.\n"
+        ).encode()
+    else:
+        readme = (
+            "Compress-Mart artifact.\n"
+            "Compression is SIMULATED and benchmarks are EMULATED.\n"
+            "Do not deploy this payload as a real quantized model.\n"
+        ).encode()
     files = {
         "model.bin": payload,
         "compression_manifest.json": json.dumps(manifest, indent=2).encode(),
@@ -140,11 +172,7 @@ def write_artifact_tar(*, tar_path: Path, payload: bytes, manifest: dict,
         "benchmark.json": json.dumps(benchmark, indent=2).encode(),
         "provenance_bundle.json": json.dumps(provenance, indent=2).encode(),
         "license_receipt.json": json.dumps(receipt, indent=2).encode(),
-        "README.txt": (
-            "Compress-Mart Phase 1 artifact.\n"
-            "Compression is SIMULATED and benchmarks are EMULATED.\n"
-            "Do not deploy this payload as a real quantized model.\n"
-        ).encode(),
+        "README.txt": readme,
     }
     with tarfile.open(tar_path, "w:gz") as tar:
         for name, data in files.items():

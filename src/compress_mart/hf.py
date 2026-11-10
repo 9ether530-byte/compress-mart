@@ -34,19 +34,26 @@ def fetch_card(model_id: str, timeout: int = 15) -> dict:
         card = json.loads(resp.read())
     license_name = None
     card_data = card.get("cardData") or {}
-    if card_data.get("license"):
-        license_name = card_data["license"]
-    else:
-        for tag in card.get("tags", []):
-            if tag.startswith("license:"):
+    raw_license = card_data.get("license")
+    if isinstance(raw_license, list):
+        license_name = raw_license[0] if raw_license else None
+    elif raw_license:
+        license_name = raw_license
+    if not license_name:
+        for tag in card.get("tags") or []:
+            if isinstance(tag, str) and tag.startswith("license:"):
                 license_name = tag.split(":", 1)[1]
                 break
     pipeline_tag = card.get("pipeline_tag")
+    siblings = []
+    for s in card.get("siblings") or []:
+        if isinstance(s, dict) and s.get("rfilename"):
+            siblings.append(s["rfilename"])
     return {
         "license": license_name,
         "pipeline_tag": pipeline_tag,
         "task": PIPELINE_TO_TASK.get(pipeline_tag) if pipeline_tag else None,
-        "siblings": [s["rfilename"] for s in card.get("siblings", [])],
+        "siblings": siblings,
     }
 
 

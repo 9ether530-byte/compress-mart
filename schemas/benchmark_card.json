@@ -1,1 +1,93 @@
-{"$id":"https://compress-mart.local/schemas/benchmark_card.json","$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"artifact_id":{"type":"string"},"compressed_size_bytes":{"type":"integer"},"emulated":{"type":"boolean"},"latency_ms":{"properties":{"p50":{"type":"number"},"p95":{"type":"number"},"p99":{"type":"number"}},"required":["p50","p95","p99"],"type":"object"},"original_size_bytes":{"type":"integer"},"passed":{"type":"boolean"},"peak_memory_mb":{"type":"number"},"quality_delta":{"type":"number"},"quality_metric":{"type":"string"},"quality_value":{"type":"number"},"reproduction_commands":{"items":{"type":"string"},"type":"array"},"size_ratio":{"type":"number"},"target":{"type":"string"}},"required":["artifact_id","target","quality_metric","quality_value","quality_delta","latency_ms","peak_memory_mb","original_size_bytes","compressed_size_bytes","size_ratio","passed","reproduction_commands","emulated"],"title":"BenchmarkCard","type":"object"}
+{
+  "$id": "https://compress-mart.local/schemas/benchmark_card.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "artifact_id": {
+      "type": "string"
+    },
+    "compressed_size_bytes": {
+      "type": "integer"
+    },
+    "emulated": {
+      "type": "boolean"
+    },
+    "latency_ms": {
+      "properties": {
+        "p50": {
+          "type": "number"
+        },
+        "p95": {
+          "type": "number"
+        },
+        "p99": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "p50",
+        "p95",
+        "p99"
+      ],
+      "type": "object"
+    },
+    "original_size_bytes": {
+      "type": "integer"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "peak_memory_mb": {
+      "type": "number"
+    },
+    "quality_delta": {
+      "type": "number"
+    },
+    "quality_metric": {
+      "type": "string"
+    },
+    "quality_value": {
+      "type": "number"
+    },
+    "reproduction_commands": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "size_ratio": {
+      "type": "number"
+    },
+    "target": {
+      "type": "string"
+    },
+    "compression_mode": {
+      "type": "string"
+    },
+    "measured_host_dequant_ms": {
+      "type": "number"
+    },
+    "measured_host_dequant_elements": {
+      "type": "integer"
+    },
+    "measured_host": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "target",
+    "quality_metric",
+    "quality_value",
+    "quality_delta",
+    "latency_ms",
+    "peak_memory_mb",
+    "original_size_bytes",
+    "compressed_size_bytes",
+    "size_ratio",
+    "passed",
+    "reproduction_commands",
+    "emulated"
+  ],
+  "title": "BenchmarkCard",
+  "type": "object"
+}

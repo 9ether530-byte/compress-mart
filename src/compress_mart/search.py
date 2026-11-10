@@ -64,8 +64,9 @@ def search(query: str, limit: int = 20) -> dict:
 
 
 def health() -> dict:
+    # Short timeout: /health must not stall for 10 s when search is down.
     try:
-        h = _req("GET", "/health")
+        h = _req("GET", "/health", timeout=2)
         return {"available": h.get("status") == "available", "url": search_url()}
     except Exception:  # noqa: BLE001
         return {"available": False, "url": search_url()}
