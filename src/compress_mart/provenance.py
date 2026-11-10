@@ -11,6 +11,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import time
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -40,17 +42,34 @@ def load_or_create_keypair(key_dir: Path) -> tuple[Ed25519PrivateKey, str]:
     key_dir.mkdir(parents=True, exist_ok=True)
     priv_path = key_dir / "ed25519_private.pem"
     if priv_path.exists():
-        private = serialization.load_pem_private_key(priv_path.read_bytes(), password=None)
+        try:
+            private = serialization.load_pem_private_key(priv_path.read_bytes(), password=None)
+        except Exception:
+            # A corrupt key must not crash startup: quarantine it and
+            # generate a fresh one (old artifacts signed with the lost
+            # key will fail verification, as they should).
+            quarantine = key_dir / f"ed25519_private.corrupt-{int(time.time())}.pem"
+            priv_path.rename(quarantine)
+            print(f"WARNING: corrupt signing key quarantined at {quarantine}; "
+                  "generating a fresh keypair")
+            private = None
     else:
+        private = None
+    if private is None:
         private = Ed25519PrivateKey.generate()
-        priv_path.write_bytes(
-            private.private_bytes(
+        # Write via a temp file created with 0600, then atomically
+        # rename: the private key never exists with default perms.
+        tmp_path = key_dir / f".ed25519_private.tmp-{os.getpid()}"
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(fd, private.private_bytes(
                 serialization.Encoding.PEM,
                 serialization.PrivateFormat.PKCS8,
                 serialization.NoEncryption(),
-            )
-        )
-        priv_path.chmod(0o600)
+            ))
+        finally:
+            os.close(fd)
+        os.replace(tmp_path, priv_path)
     public_pem = private.public_key().public_bytes(
         serialization.Encoding.PEM,
         serialization.PublicFormat.SubjectPublicKeyInfo,
