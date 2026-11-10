@@ -12,11 +12,21 @@ spec:
     spec:
       containers:
         - name: api
-          image: compress-mart:phase7
+          # Phase 9: build this tag first with scripts/build-container-phase8.sh.
+          # Earlier phases tagged phase5 (slim) and phase6-torch only;
+          # phase7 was never built, so it must not be referenced here.
+          image: compress-mart:phase8
           ports: [{containerPort: 8000}]
           env:
             - {name: COMPRESS_MART_DATA, value: /data}
             - {name: COMPRESS_MART_SEARCH_URL, value: "http://compress-mart-search:7700"}
+            - {name: COMPRESS_MART_PG_DSN, value: "host=compress-mart-postgres port=5432 user=compress_mart password=compress_mart_dev dbname=compress_mart connect_timeout=2"}
+            - {name: COMPRESS_MART_S3_ENDPOINT, value: "http://compress-mart-minio:9000"}
+            - {name: COMPRESS_MART_S3_BUCKET, value: compress-mart}
+            - {name: COMPRESS_MART_S3_ACCESS_KEY, value: compress_mart}
+            - {name: COMPRESS_MART_S3_SECRET_KEY, value: compress_mart_dev_pw}
+            # COMPRESS_MART_API_TOKEN: set from a Secret in a real
+            # deployment; when unset, auth stays off (local dev only).
           volumeMounts:
             - {name: data, mountPath: /data}
       volumes:
@@ -51,7 +61,7 @@ spec:
     spec:
       containers:
         - name: search
-          image: docker.io/getmeili/meilisearch:v1.17
+          image: docker.io/getmeili/meilisearch:v1.17.1
           ports: [{containerPort: 7700}]
           env:
             - {name: MEILI_NO_ANALYTICS, value: "true"}
@@ -69,4 +79,42 @@ spec:
   selector: {app: compress-mart-search}
   ports:
     - {port: 7700, targetPort: 7700}
+  type: ClusterIP
+---
+# Postgres replica (Phase 8): the API syncs to it on demand via
+# POST /postgres/sync. SQLite stays the authoritative primary.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compress-mart-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: compress-mart-postgres}
+  template:
+    metadata:
+      labels: {app: compress-mart-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: docker.io/pgvector/pgvector:pg16
+          ports: [{containerPort: 5432}]
+          env:
+            - {name: POSTGRES_USER, value: compress_mart}
+            - {name: POSTGRES_PASSWORD, value: compress_mart_dev}
+            - {name: POSTGRES_DB, value: compress_mart}
+          volumeMounts:
+            - {name: pg-data, mountPath: /var/lib/postgresql/data}
+      volumes:
+        - name: pg-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: compress-mart-postgres
+spec:
+  selector: {app: compress-mart-postgres}
+  ports:
+    - {port: 5432, targetPort: 5432}
   type: ClusterIP
