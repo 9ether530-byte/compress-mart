@@ -1,7 +1,8 @@
-# Phase 8: API + Meilisearch (live in Phase 7) + Postgres replica
-# (live in Phase 8, pgvector:pg16). MinIO remains a placeholder:
-# the S3 client is built and tested, but the MinIO image pull is
-# denied by the registry in this sandbox, so MinIO is NOT live here.
+# Phase 9: API + Meilisearch (live in Phase 7) + Postgres replica
+# (live in Phase 8, pgvector:pg16) + MinIO (S3 client built in Phase 8;
+# the image pull was registry-denied in the sandbox, so MinIO was not
+# live there — on a PC `docker pull docker.io/minio/minio:latest`
+# should work, then POST /storage/sync proves it).
 # SQLite stays the authoritative primary; Postgres is a replica.
 services:
   api:
@@ -16,11 +17,19 @@ services:
       - COMPRESS_MART_DATA=/data
       - COMPRESS_MART_SEARCH_URL=http://meilisearch:7700
       - COMPRESS_MART_PG_DSN=host=postgres port=5432 user=compress_mart password=compress_mart_dev dbname=compress_mart
+      - COMPRESS_MART_S3_ENDPOINT=http://minio:9000
+      - COMPRESS_MART_S3_BUCKET=compress-mart
+      - COMPRESS_MART_S3_ACCESS_KEY=compress_mart
+      - COMPRESS_MART_S3_SECRET_KEY=compress_mart_dev_pw
+      # COMPRESS_MART_API_TOKEN and COMPRESS_MART_SEARCH_KEY are
+      # optional and intentionally unset here; set them before
+      # exposing any service beyond localhost.
     depends_on:
       - meilisearch
       - postgres
+      - minio
   meilisearch:
-    image: docker.io/getmeili/meilisearch:v1.17
+    image: docker.io/getmeili/meilisearch:v1.17.1
     ports:
       - "7700:7700"
     volumes:
@@ -37,10 +46,19 @@ services:
       - POSTGRES_USER=compress_mart
       - POSTGRES_PASSWORD=compress_mart_dev
       - POSTGRES_DB=compress_mart
-  # minio:
-  #   image: docker.io/minio/minio
-  #   # Registry access denied in this sandbox (Phase 8); see README.
+  minio:
+    image: docker.io/minio/minio:latest
+    command: server /data --console-address :9001
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - compress-mart-minio-data:/data
+    environment:
+      - MINIO_ROOT_USER=compress_mart
+      - MINIO_ROOT_PASSWORD=compress_mart_dev_pw
 volumes:
   compress-mart-data:
   compress-mart-search-data:
   compress-mart-pg-data:
+  compress-mart-minio-data:
