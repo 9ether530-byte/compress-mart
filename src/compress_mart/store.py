@@ -119,13 +119,19 @@ class Store:
         with self._conn() as conn:
             conn.execute("UPDATE artifacts SET state=? WHERE id=?", (new_state, artifact_id))
 
+    def delete_artifact(self, artifact_id: str):
+        """Remove an artifact row (used to roll back a compress that
+        failed after insert, so no orphan INGESTED row is left)."""
+        with self._conn() as conn:
+            conn.execute("DELETE FROM artifacts WHERE id=?", (artifact_id,))
+
     def list_artifacts(self, *, target=None, task=None, bit_width=None,
                        license_status=None, max_size=None, state=None) -> list[dict]:
         with self._conn() as conn:
             rows = conn.execute("""
                 SELECT a.*, m.task AS task, m.license AS license,
                        m.license_status AS license_status, m.upstream_id AS upstream_id
-                FROM artifacts a JOIN models m ON m.id = a.model_id
+                FROM artifacts a LEFT JOIN models m ON m.id = a.model_id
             """).fetchall()
         out = []
         for r in rows:
