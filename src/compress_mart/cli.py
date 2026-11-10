@@ -26,15 +26,6 @@ def _get(base: str, path: str):
         return json.loads(resp.read())
 
 
-def _post(base: str, path: str, payload: dict):
-    req = urllib.request.Request(
-        base.rstrip("/") + path,
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read())
-
-
 def cmd_search(args):
     q = {}
     if args.target:
@@ -50,7 +41,7 @@ def cmd_search(args):
     url = "/models" + ("?" + urllib.parse.urlencode(q) if q else "")
     results = _get(args.base_url, url)
     if not results:
-        print("No certified artifacts match.")
+        print("No artifacts match.")
         return 0
     for r in results:
         b = r.get("benchmark") or {}
