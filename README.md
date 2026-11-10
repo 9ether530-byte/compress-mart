@@ -1,4 +1,4 @@
-# Compress-Mart — Phase 8
+# Compress-Mart — Phase 9
 
 A Model Compression Marketplace, built as a verified local core first.
 Separate from VISION. No real hardware, no billing in this phase —
@@ -9,6 +9,50 @@ what is already proven, and the five items the PC still needs to prove,
 in order.
 
 ## What works (verified by tests + live smoke)
+
+## Phase 9 additions (2026-11-10) — audit fixes
+
+A full audit (2026-11-10) found the Phase 4 loop broken for real
+artifacts and several honesty gaps. All are fixed here, with
+regression tests in `tests/test_phase9.py`:
+
+- Router feedback loop, real: feedback is matched on the tool that
+  actually runs (`SafetensorsInt8/16`, `TorchInt8/16`, `NumPyInt8/16`),
+  not only on the router's named tool, and a refinement to 16 bit now
+  produces a real 16-bit artifact (INT16 safetensors / .pt / .npz),
+  larger and more accurate than the 8-bit one. An explicitly
+  requested bit width is never overridden by the loop.
+- REAL bundles label themselves: the tar README and benchmark card
+  say REAL with measured quality (target latency still emulated), and
+  `benchmark.json` inside the tar now carries
+  `measured_host_dequant_ms` / `measured_host_dequant_elements`
+  (the tar is rewritten after measuring). The benchmark schema
+  carries those fields as optional properties.
+- Unsupported safetensors dtypes (e.g. F64) now fail loudly with
+  400 instead of silently compressing as SIMULATED, and a header
+  larger than 1 MB is read in full for detection. Data offsets are
+  validated against shape and file size; truncated files are
+  rejected, not quantized with wrong stats.
+- `GET /benchmarks/trend?target=<unknown>` is 404, not 500.
+  `POST /router/feedback/apply-auto` reports real-quantizer
+  aggregates as skipped with the real reason, and refuses ambiguous
+  policy matches instead of bumping the first rule that fits.
+- Uploads are capped at 200 MB (413 above, same cap as HF downloads).
+- `DEPRECATED` is reachable: `POST /models/{id}/deprecate` retires a
+  CERTIFIED/PUBLISHED artifact (and the model, when its last artifact
+  is retired). `POST /agent/query` is now token-gated like every
+  other write. The signing key is written 0600-then-renamed, and a
+  corrupt key is quarantined and replaced instead of crashing startup.
+- K8s now reflects Phase 8/9: API image `compress-mart:phase8`
+  (build it with `scripts/build-container-phase8.sh`), Postgres
+  Deployment/Service with `COMPRESS_MART_PG_DSN`, S3 env vars, and
+  Meilisearch `v1.17.1`. Compose now defines MinIO for real (plus
+  S3 env on the API) and pins Meilisearch `v1.17.1`. The KFP DAG no
+  longer skips the whole chain when `distill` is gated off, and its
+  templates use the built `compress-mart:phase8` image.
+- Docs corrected: the Run-it curls carry
+  `-H 'Content-Type: application/json'` (they 422'd without it),
+  the auth list is complete, and the Compose description is current.
 
 ## Phase 8 additions (2026-10-29)
 
@@ -59,7 +103,8 @@ in order.
   service added, and both manifests YAML-validated (4 K8s docs:
   2 Deployments, 2 Services). Not cluster-proven — no kubectl/kind
   is available in this sandbox, so the manifests are validated
-  only, not applied, and the manifest says so.
+  only, not applied, and the manifest says so. (Phase 9: image
+  bumped to phase8 with Postgres wiring — see above.)
 
 ## Phase 6 additions (2026-10-29)
 
@@ -93,7 +138,10 @@ in order.
   to the data dir, and a fresh app on the same data dir loads it —
   refinements now survive restarts instead of applying per-run only.
   Auto-apply only bumps unambiguous laptop rules (8 → 16); other
-  categories are reported as skipped, not guessed.
+  categories are reported as skipped, not guessed. Real-quantizer
+  aggregates (`SafetensorsInt8/16`, `TorchInt8/16`, `NumPyInt8/16`)
+  have no policy rule and are reported as skipped with that reason
+  (Phase 9 fix — they used to be silently dropped).
 - F16/BF16 safetensors: the parser/quantizer now reads F16 and BF16
   tensors (converted to float32 for quantization, output still INT8),
   verified with synthetic mixed-dtype files.
@@ -124,9 +172,11 @@ in order.
   ratio and latency per tool/target/bit-width, with a recommendation.
   When a tool/target has 3+ samples and under half passing, the next
   compress for that tool/target is automatically refined to the next
-  recommended bit width (reported as `router_refined`), e.g. a seeded
-  failing AngelSlim/laptop history refined a real llm+laptop compress
-  from 8 to 16 bit in tests.
+  recommended bit width (reported as `router_refined`). Phase 9
+  fixed this for real artifacts: the match is on the tool that
+  actually runs, and a refinement to 16 bit is a real 16-bit
+  quantization, not a relabelled 8-bit payload. An explicitly
+  requested bit width is never overridden.
 - Provenance → catalog: `POST /maintenance/reverify` re-verifies
   every CERTIFIED/PUBLISHED artifact against the trusted key and
   quarantines any that now fail, so tampering after certification
@@ -136,15 +186,18 @@ in order.
   bit width, state, license) and `GET /models?q=` free-text search,
   both wired into the storefront and into `cm feedback` / `cm facets`.
 - Auth: when `COMPRESS_MART_API_TOKEN` is set, ingest, compress,
-  publish, maintenance and pull require `X-API-Token` (401 otherwise);
-  reads stay open, and `GET /health` reports `auth_enabled`. Without
-  the env var, behaviour is unchanged.
+  publish, deprecate, maintenance, router, search/index,
+  postgres/sync, storage/sync, agent/query and pull require
+  `X-API-Token` (401 otherwise); reads stay open, and `GET /health`
+  reports `auth_enabled`. Without the env var, behaviour is unchanged.
 
 ## Phase 3 additions (2026-10-29)
 
 - Real per-tensor INT8 quantization of F32 safetensors models, with
   no torch/transformers: a stdlib + numpy safetensors parser/writer,
-  chunked so a 151 MB model never sits in memory twice. Scales live
+  chunked so a 151 MB model is never held whole in memory (the
+  quantized output is accumulated as it is produced; one float32
+  chunk at a time is in memory). Scales live
   in the output header's __metadata__, so the artifact dequantizes
   from its own bytes. Verified live with openai/whisper-tiny
   `model.safetensors`: 151,061,672 bytes, apache-2.0 VERIFIED from its
@@ -210,10 +263,14 @@ in order.
   returning only CERTIFIED/PUBLISHED artifacts. Full OpenAPI at `/docs`.
 - Storefront at `/` and CLI `cm` (`search`, `pull`, `verify`, `targets`).
 - Docker Compose + Kubernetes manifests and GitHub Actions workflows
-  (schema validation gate, nightly pipeline test) are generated; the
-  Compose file defines only the API service in Phase 1.
+  (schema validation gate, nightly pipeline test) are in the repo; the
+  Compose file defines the API, Meilisearch and Postgres services
+  (Phase 8; in Phase 1 it defined only the API service). Note: the two
+  workflow files are in the local repo but are not on GitHub `main`
+  yet — the GitHub App lacks the Workflows permission to push them,
+  so add them from a PC clone or the web UI.
 
-## What is NOT built or proven in Phase 8
+## What is NOT built or proven in Phase 9
 
 - Live MinIO/S3 object storage (client built and tested, but the
   image pull is registry-denied in this sandbox; see above).
@@ -229,9 +286,9 @@ in order.
 pip install -r requirements.txt
 ./scripts/run.sh
 # in another shell, from the repo root:
-PYTHONPATH=src python -m compress_mart.cli --base-url http://127.0.0.1:8020 targets
-curl -X POST localhost:8020/ingest/hub -d '{"model_id":"openai/whisper-tiny"}'
-curl -X POST localhost:8020/compress -d '{"model_id":"openai/whisper-tiny","target":"rpi5","policy":"auto"}'
+PYTHONPATH=src python3 -m compress_mart.cli --base-url http://127.0.0.1:8020 targets
+curl -X POST localhost:8020/ingest/hub -H 'Content-Type: application/json' -d '{"model_id":"openai/whisper-tiny"}'
+curl -X POST localhost:8020/compress -H 'Content-Type: application/json' -d '{"model_id":"openai/whisper-tiny","target":"rpi5","policy":"auto"}'
 curl "localhost:8020/models?target=rpi5&task=asr"
 ```
 
@@ -241,6 +298,6 @@ local service on 8020 in Phase 1, with all of the prompt's routes kept.
 ## Tests
 
 ```bash
-python -m pytest -q
-python scripts/validate_schemas.py
+python3 -m pytest -q
+python3 scripts/validate_schemas.py
 ```
