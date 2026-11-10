@@ -13,10 +13,14 @@ from pathlib import Path
 
 import numpy as np
 
+from .safetensors import load_safetensors_int8
+
 
 def measure_artifact_tar(tar_path: Path, fmt: str) -> dict | None:
     """Dequantize the payload in tar_path and return timing + elements.
-    Returns None for formats with no real dequantization path."""
+    Returns None for formats with no real dequantization path.
+    A missing scale in a safetensors payload raises inside the loader
+    instead of silently defaulting to 1.0."""
     fmt = (fmt or "").lower()
     if fmt not in ("safetensors", "pt", "npz"):
         return None
@@ -25,7 +29,7 @@ def measure_artifact_tar(tar_path: Path, fmt: str) -> dict | None:
     try:
         with tempfile.TemporaryDirectory() as tmp:
             with tarfile.open(tar_path, "r:gz") as tar:
-                tar.extract("model.bin", path=tmp)
+                tar.extract("model.bin", path=tmp, filter="data")
             payload = Path(tmp) / "model.bin"
             if fmt == "npz":
                 data = np.load(payload, allow_pickle=False)
@@ -40,24 +44,11 @@ def measure_artifact_tar(tar_path: Path, fmt: str) -> dict | None:
                 for name, q in bundle["quantized"].items():
                     deq = q.float() * bundle["scales"][name]
                     elements += int(deq.numel())
-            else:  # safetensors: dequantize the INT8 payload in place
-                import json as _json  # noqa: PLC0415
-                import struct as _struct  # noqa: PLC0415
-                with open(payload, "rb") as f:
-                    header_len = _struct.unpack("<Q", f.read(8))[0]
-                    header = _json.loads(f.read(header_len))
-                meta = header.get("__metadata__", {})
-                data_start = 8 + header_len
-                for name, spec in header.items():
-                    if name == "__metadata__":
-                        continue
-                    scale = float(meta.get(f"compress_mart_scale:{name}", "1.0"))
-                    start_off, end_off = spec["data_offsets"]
-                    with open(payload, "rb") as f:
-                        f.seek(data_start + start_off)
-                        raw = f.read(end_off - start_off)
-                    arr = np.frombuffer(raw, dtype=np.int8).astype(np.float32) * scale
-                    elements += int(arr.size)
+            else:  # safetensors: dequantize the INT8/INT16 payload
+                tensors, scales = load_safetensors_int8(payload.read_bytes())
+                for name, arr in tensors.items():
+                    deq = arr.astype(np.float32) * scales[name]
+                    elements += int(deq.size)
     except Exception:  # noqa: BLE001
         return None
     elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
