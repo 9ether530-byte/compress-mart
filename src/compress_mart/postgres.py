@@ -28,10 +28,12 @@ CREATE TABLE IF NOT EXISTS cm_artifacts (
 
 
 def dsn() -> str:
-    return os.environ.get(
+    base = os.environ.get(
         "COMPRESS_MART_PG_DSN",
         "host=127.0.0.1 port=5432 user=compress_mart "
         "password=compress_mart_dev dbname=compress_mart")
+    # Health/status probes must not hang the API when Postgres is down.
+    return base if "connect_timeout" in base else base + " connect_timeout=2"
 
 
 def connect():
@@ -50,7 +52,12 @@ def sync(store) -> dict:
             models = {}
             arts = store.list_artifacts()
             for a in arts:
-                models[a["model_id"]] = store.get_model(a["model_id"]) or a
+                # An artifact whose model row is gone (orphan) is still
+                # synced as an artifact; it is NOT re-invented as a
+                # model by inserting the artifact id as a model id.
+                model = store.get_model(a["model_id"])
+                if model is not None:
+                    models[a["model_id"]] = model
             for m in models.values():
                 cur.execute(
                     "INSERT INTO cm_models VALUES (%s,%s,%s,%s,%s,%s,%s)",
