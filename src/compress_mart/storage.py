@@ -39,7 +39,11 @@ def _sign(key: bytes, msg: str) -> bytes:
 def signature_headers(method: str, url: str, body: bytes, content_type: str = "application/octet-stream") -> dict:
     """Return the SigV4 headers for a request. Pure function, unit-testable."""
     access = os.environ.get("COMPRESS_MART_S3_ACCESS_KEY", "compress_mart")
-    secret = os.environ.get("COMPRESS_MART_S3_SECRET_KEY", "compress_mart_dev_pw")
+    secret = os.environ.get("COMPRESS_MART_S3_SECRET_KEY")
+    if not secret:
+        raise RuntimeError(
+            "COMPRESS_MART_S3_SECRET_KEY is not set; the S3 secret "
+            "must come from the environment (no default password).")
     region = "us-east-1"
     now = datetime.now(timezone.utc)
     amzdate = now.strftime("%Y%m%dT%H%M%SZ")

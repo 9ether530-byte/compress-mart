@@ -20,11 +20,17 @@ spec:
           env:
             - {name: COMPRESS_MART_DATA, value: /data}
             - {name: COMPRESS_MART_SEARCH_URL, value: "http://compress-mart-search:7700"}
-            - {name: COMPRESS_MART_PG_DSN, value: "host=compress-mart-postgres port=5432 user=compress_mart password=compress_mart_dev dbname=compress_mart connect_timeout=2"}
+            - {name: COMPRESS_MART_PG_DSN, valueFrom: {secretKeyRef: {name: compress-mart-secrets, key: pg-dsn}}}
             - {name: COMPRESS_MART_S3_ENDPOINT, value: "http://compress-mart-minio:9000"}
             - {name: COMPRESS_MART_S3_BUCKET, value: compress-mart}
             - {name: COMPRESS_MART_S3_ACCESS_KEY, value: compress_mart}
-            - {name: COMPRESS_MART_S3_SECRET_KEY, value: compress_mart_dev_pw}
+            - {name: COMPRESS_MART_S3_SECRET_KEY, valueFrom: {secretKeyRef: {name: compress-mart-secrets, key: s3-secret-key}}}
+            # Secrets come from the compress-mart-secrets Secret, never
+            # from literals in this manifest. Create it out of band,
+            # e.g. kubectl create secret generic compress-mart-secrets
+            # --from-literal=pg-dsn='host=... password=...' \
+            # --from-literal=s3-secret-key='...' \
+            # --from-literal=pg-password='...' — and never commit it.
             # COMPRESS_MART_API_TOKEN: set from a Secret in a real
             # deployment; when unset, auth stays off (local dev only).
           volumeMounts:
@@ -101,7 +107,7 @@ spec:
           ports: [{containerPort: 5432}]
           env:
             - {name: POSTGRES_USER, value: compress_mart}
-            - {name: POSTGRES_PASSWORD, value: compress_mart_dev}
+            - {name: POSTGRES_PASSWORD, valueFrom: {secretKeyRef: {name: compress-mart-secrets, key: pg-password}}}
             - {name: POSTGRES_DB, value: compress_mart}
           volumeMounts:
             - {name: pg-data, mountPath: /var/lib/postgresql/data}

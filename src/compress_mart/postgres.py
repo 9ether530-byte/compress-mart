@@ -6,8 +6,9 @@ there). Postgres is a replica, synced on demand via POST
 It is NOT a live primary, and sync is not automatic — that is the
 honest limit of this phase.
 
-Env: COMPRESS_MART_PG_DSN (default host=127.0.0.1 port=5432
-user=compress_mart password=compress_mart_dev dbname=compress_mart).
+Env: COMPRESS_MART_PG_DSN (required — no default. The DSN carries
+the Postgres password, so it must come from the environment; a
+missing value raises instead of connecting with a baked-in password).
 psycopg is optional: importorskip in tests, and the endpoint
 returns 502 when it is missing or Postgres is unreachable.
 """
@@ -28,10 +29,11 @@ CREATE TABLE IF NOT EXISTS cm_artifacts (
 
 
 def dsn() -> str:
-    base = os.environ.get(
-        "COMPRESS_MART_PG_DSN",
-        "host=127.0.0.1 port=5432 user=compress_mart "
-        "password=compress_mart_dev dbname=compress_mart")
+    base = os.environ.get("COMPRESS_MART_PG_DSN")
+    if not base:
+        raise RuntimeError(
+            "COMPRESS_MART_PG_DSN is not set; Postgres credentials "
+            "must come from the environment (no default password).")
     # Health/status probes must not hang the API when Postgres is down.
     return base if "connect_timeout" in base else base + " connect_timeout=2"
 

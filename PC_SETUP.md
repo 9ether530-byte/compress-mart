@@ -78,9 +78,11 @@ curl http://127.0.0.1:8020/external/status
 
 - The signing key is generated on first run in `$COMPRESS_MART_DATA/keys`
   and is never printed or served. Do not commit `data/`.
-- `docker-compose.yml`, `postgres.py` and `storage.py` use local
-  dev-only passwords (`compress_mart_dev` for Postgres,
-  `compress_mart_dev_pw` for the S3 secret key). Change them before
-  exposing any service beyond localhost.
+- `docker-compose.yml`, `postgres.py` and `storage.py` take all
+  passwords from the environment and refuse to run without them —
+  there are no default passwords in this repo. Set
+  `COMPRESS_MART_PG_PASSWORD` and `COMPRESS_MART_S3_SECRET_KEY` in
+  `infra/docker/.env` (copy `.env.example`) for Compose, or in the
+  `compress-mart-secrets` Secret for Kubernetes.
 - `COMPRESS_MART_API_TOKEN`, when set, gates all writes and pull
   with header `X-API-Token`. Set it for any shared deployment.

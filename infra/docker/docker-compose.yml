@@ -1,3 +1,8 @@
+# Secrets come from the environment — there are no default passwords
+# anywhere in this repo. Copy infra/docker/.env.example to
+# infra/docker/.env and set COMPRESS_MART_PG_PASSWORD and
+# COMPRESS_MART_S3_SECRET_KEY there (.env is gitignored). Compose
+# fails fast with a clear error if either is unset.
 # Phase 9: API + Meilisearch (live in Phase 7) + Postgres replica
 # (live in Phase 8, pgvector:pg16) + MinIO (S3 client built in Phase 8;
 # the image pull was registry-denied in the sandbox, so MinIO was not
@@ -16,11 +21,11 @@ services:
     environment:
       - COMPRESS_MART_DATA=/data
       - COMPRESS_MART_SEARCH_URL=http://meilisearch:7700
-      - COMPRESS_MART_PG_DSN=host=postgres port=5432 user=compress_mart password=compress_mart_dev dbname=compress_mart
+      - COMPRESS_MART_PG_DSN=host=postgres port=5432 user=compress_mart password=${COMPRESS_MART_PG_PASSWORD:?COMPRESS_MART_PG_PASSWORD must be set in .env} dbname=compress_mart
       - COMPRESS_MART_S3_ENDPOINT=http://minio:9000
       - COMPRESS_MART_S3_BUCKET=compress-mart
       - COMPRESS_MART_S3_ACCESS_KEY=compress_mart
-      - COMPRESS_MART_S3_SECRET_KEY=compress_mart_dev_pw
+      - COMPRESS_MART_S3_SECRET_KEY=${COMPRESS_MART_S3_SECRET_KEY:?COMPRESS_MART_S3_SECRET_KEY must be set in .env}
       # COMPRESS_MART_API_TOKEN and COMPRESS_MART_SEARCH_KEY are
       # optional and intentionally unset here; set them before
       # exposing any service beyond localhost.
@@ -44,7 +49,7 @@ services:
       - compress-mart-pg-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=compress_mart
-      - POSTGRES_PASSWORD=compress_mart_dev
+      - POSTGRES_PASSWORD=${COMPRESS_MART_PG_PASSWORD:?COMPRESS_MART_PG_PASSWORD must be set in .env}
       - POSTGRES_DB=compress_mart
   minio:
     image: docker.io/minio/minio:latest
@@ -56,7 +61,7 @@ services:
       - compress-mart-minio-data:/data
     environment:
       - MINIO_ROOT_USER=compress_mart
-      - MINIO_ROOT_PASSWORD=compress_mart_dev_pw
+      - MINIO_ROOT_PASSWORD=${COMPRESS_MART_S3_SECRET_KEY:?COMPRESS_MART_S3_SECRET_KEY must be set in .env}
 volumes:
   compress-mart-data:
   compress-mart-search-data:
